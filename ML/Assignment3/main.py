@@ -12,6 +12,19 @@ def get_hyperparameters() -> Tuple[float, int, List[float]]:
     
     return learning_rate, num_iters, C
 
+
+def save_metrics_to_csv(metrics: list, filename: str = 'svm_metrics_results.csv') -> None:
+    # Helper function to dump the list of tuples to a CSV file
+    print(f"\nSaving metrics to {filename}...")
+    with open(filename, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        # Write the header row first
+        writer.writerow(['C_value', 'k_components', 'Accuracy', 'Precision', 'Recall', 'F1_Score'])
+        # Write all the data rows
+        writer.writerows(metrics)
+    print("Save complete.")
+
+
 def main() -> None:
     # hyperparameters
     learning_rate, num_iters, C_list = get_hyperparameters()
@@ -64,6 +77,7 @@ def main() -> None:
 
             print(f'C={C_i}, k={k:3d} | acc={accuracy:.4f}, prec={precision:.4f}, rec={recall:.4f}, f1={f1_score:.4f}')
 
+    save_metrics_to_csv(metrics)
     # plot and save the results
     plot_metrics(metrics)
 

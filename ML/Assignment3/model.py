@@ -207,7 +207,7 @@ def my_eigh(A, max_iter=200, tol=1e-8):
     return eigenvalues, eigenvectors
 
 
-class PCAScratch:
+class PCA:
     def __init__(self, n_components):
         self.n_components = n_components
         self.components = None

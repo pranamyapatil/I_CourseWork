@@ -33,7 +33,7 @@ def get_data():
     # load the data
     # return X_train, X_test, y_train, y_test
     X_train, y_train = load_mnist(kind="train")
-    X_test, y_test = load_mnist(kind="test")
+    X_test, y_test = load_mnist(kind="t10k")
     return X_train, X_test, y_train, y_test
     
 
