@@ -1,6 +1,7 @@
 from utils import get_data, plot_metrics, normalize
 from model import MultiClassSVM, PCA
 from typing import Tuple, List
+import csv
 
 def get_hyperparameters() -> Tuple[float, int, List[float]]:
     # get the hyperparameters
