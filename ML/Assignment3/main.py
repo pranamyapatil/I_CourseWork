@@ -1,17 +1,20 @@
 from utils import get_data, plot_metrics, normalize
 from model import MultiClassSVM, PCA
-from typing import Tuple
+from typing import Tuple, List
 
-
-def get_hyperparameters() -> Tuple[float, int, float]:
+def get_hyperparameters() -> Tuple[float, int, List[float]]:
     # get the hyperparameters
+    learning_rate = 0.01
+    num_iters = 1000
+    
     # C should be a list with median as 1 and 5 different values.
-    raise NotImplementedError
-
+    C = [0.01, 0.1, 1.0, 10.0, 100.0]
+    
+    return learning_rate, num_iters, C
 
 def main() -> None:
     # hyperparameters
-    learning_rate, num_iters, C = get_hyperparameters()
+    learning_rate, num_iters, C_list = get_hyperparameters()
 
     # get data
     X_train, X_test, y_train, y_test = get_data()
@@ -19,36 +22,50 @@ def main() -> None:
     # normalize the data
     X_train, X_test = normalize(X_train, X_test)
 
+    # Define the number of principal components (k) to test
+    k_values = [10, 50, 100, 200, 500]
+    
     metrics = []
-    for C_i in C :
-        # reduce the dimensionality of the data
-        pca = PCA(n_components=k)
-        X_train = pca.fit_transform(X_train)
-        X_test = pca.transform(X_test)
+    
+    # Outer loop: Iterate over the regularization parameter C
+    for C_i in C_list:
+        print(f"\n{'='*50}")
+        print(f"Evaluating SVM with C = {C_i}")
+        print(f"{'='*50}")
+        
+        # Inner loop: Iterate over the different values of k (principal components)
+        for k in k_values:
+            print(f"--- Running PCA and SVM for k={k} components ---")
+            
+            # reduce the dimensionality of the data
+            pca = PCA(n_components=k)
+            X_train_pca = pca.fit_transform(X_train)
+            X_test_pca = pca.transform(X_test)
 
-        # create a model
-        svm = MultiClassSVM(num_classes=10)
+            # create a model
+            svm = MultiClassSVM(num_classes=10)
 
-        # fit the model
-        svm.fit(
-            X_train, y_train, C=C_i,
-            learning_rate=learning_rate,
-            num_iters=num_iters,
-        )
+            # fit the model
+            svm.fit(
+                X_train_pca, y_train, 
+                C=C_i,
+                learning_rate=learning_rate,
+                num_iters=num_iters
+            )
 
-        # evaluate the model
-        accuracy = svm.accuracy_score(X_test, y_test)
-        precision = svm.precision_score(X_test, y_test)
-        recall = svm.recall_score(X_test, y_test)
-        f1_score = svm.f1_score(X_test, y_test)
+            # evaluate the model
+            accuracy = svm.accuracy_score(X_test_pca, y_test)
+            precision = svm.precision_score(X_test_pca, y_test)
+            recall = svm.recall_score(X_test_pca, y_test)
+            f1_score = svm.f1_score(X_test_pca, y_test)
 
-        metrics.append((k, accuracy, precision, recall, f1_score))
+            # We now store C_i in the metrics tuple as well
+            metrics.append((C_i, k, accuracy, precision, recall, f1_score))
 
-        print(f'k={k}, accuracy={accuracy}, precision={precision}, recall={recall}, f1_score={f1_score}')
+            print(f'C={C_i}, k={k:3d} | acc={accuracy:.4f}, prec={precision:.4f}, rec={recall:.4f}, f1={f1_score:.4f}')
 
     # plot and save the results
     plot_metrics(metrics)
-
 
 if __name__ == '__main__':
     main()
