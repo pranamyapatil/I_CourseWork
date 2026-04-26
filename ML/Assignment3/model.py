@@ -32,7 +32,6 @@ from tqdm import tqdm
 #         # compute the accuracy of the model (for debugging purposes)
 #         return np.mean(self.predict(X) == y)
 
-
 class SupportVectorModel:
     def __init__(self) -> None:
         self.w = None
@@ -46,34 +45,40 @@ class SupportVectorModel:
     def fit(self, X, y, learning_rate: float, num_iters: int, C: float = 1.0) -> None:
         self._initialize(X)
         N = X.shape[0]
-
-        # fit the SVM model using stochastic gradient descent
-        for i in tqdm(range(1, num_iters + 1)):
-            # sample a random training example
+        
+        # This prevents large C values from exploding the gradient
+        alpha = 1.0 / C if C > 0 else 0.0
+        
+        # Removed tqdm here to prevent terminal spam (since this runs 10 times per evaluation)
+        for i in range(1, num_iters + 1):
+            # Sample a random training example
             idx = np.random.randint(0, N)
             x_i = X[idx]
             y_i = y[idx]
+            
+            # Pegasos Decaying Learning Rate: prevents oscillation near the minimum
+            lr_t = learning_rate / (1 + learning_rate * alpha * i)
 
-            # Calculate the condition for hinge loss margin
-            # y_i(w^T x_i + b) < 1
+            # Calculate the condition for hinge loss margin: y_i(w^T x_i + b) < 1
             if y_i * (np.dot(x_i, self.w) + self.b) < 1.0:
-                # Subgradient with respect to w and b
-                # Note: No 'N' multiplier here based on the specific PDF objective
-                dw = self.w - C * y_i * x_i
-                db = -C * y_i
+                # Subgradient includes both L2 regularization and hinge loss
+                dw = alpha * self.w - y_i * x_i
+                db = -y_i
             else:
-                dw = self.w
+                # Subgradient includes ONLY L2 regularization (margin is satisfied)
+                dw = alpha * self.w
                 db = 0.0
 
             # Update weights
-            self.w -= learning_rate * dw
-            self.b -= learning_rate * db
+            self.w -= lr_t * dw
+            self.b -= lr_t * db
 
     def predict(self, X) -> np.ndarray:
         return np.sign(np.dot(X, self.w) + self.b)
 
     def accuracy_score(self, X, y) -> float:
         return np.mean(self.predict(X) == y)
+    
 
 class MultiClassSVM:
     def __init__(self, num_classes: int) -> None:
@@ -224,8 +229,8 @@ class PCA:
         
         print("Computing eigenvalues/eigenvectors from scratch. This may take a minute...")
         # Step 3: Calculate eigenvalues and eigenvectors
-        # eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-        eigenvalues, eigenvectors = my_eigh(cov_matrix)
+        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+        # eigenvalues, eigenvectors = my_eigh(cov_matrix)
         
         # Step 4: Sort eigenvectors by eigenvalues in descending order
         sorted_indices = np.argsort(eigenvalues)[::-1]

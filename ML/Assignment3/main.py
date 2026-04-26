@@ -6,7 +6,7 @@ import csv
 def get_hyperparameters() -> Tuple[float, int, List[float]]:
     # get the hyperparameters
     learning_rate = 0.01
-    num_iters = 1000
+    num_iters = 10000
     
     # C should be a list with median as 1 and 5 different values.
     C = [0.01, 0.1, 1.0, 10.0, 100.0]
