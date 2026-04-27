@@ -5,20 +5,22 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
+import torch.nn as nn
+import torch.optim as optim
 
 
 
 def get_hyperparameters() -> Tuple[float, int, float]:
     # get the hyperparameters
     lr = 0.01
-    num_iters=1000
     batch_size=64
-    return lr,num_iters, batch_size
+    epochs = 5
+    return lr, batch_size, epochs
 
 
 def main() -> None:
     # hyperparameters
-    learning_rate, num_iters,batch_size = get_hyperparameters()
+    learning_rate,batch_size, epochs = get_hyperparameters()
 
     # get data
     print("Loading FashionMNIST dataset...")
@@ -30,35 +32,102 @@ def main() -> None:
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    # Instantiate the model and move it to the device
+    model = FashionCNN().to(device)
+
+    # -----------------------------
+    # 4. Loss Function and Optimizer
+    # -----------------------------
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     metrics = []
-    for C_i in C :
-        # reduce the dimensionality of the data
-        pca = PCA(n_components=k)
-        X_train = pca.fit_transform(X_train)
-        X_test = pca.transform(X_test)
+    
+    model.train() # Set model to training mode
+    for epoch in range(epochs):
+        running_loss = 0.0
+        
+        for i, (images, labels) in enumerate(train_dataloader):
+            # Move tensors to the configured device
+            images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+            
+            # Forward pass
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            
+            # Backward pass and optimize
+            optimizer.zero_grad() # Clear previous gradients
+            loss.backward()       # Compute new gradients
+            optimizer.step()      # Update weights
+            
+            running_loss += loss.item()
+            
+            # Print status every 300 batches
+            if (i + 1) % 300 == 0:
+                print(f"Epoch [{epoch+1}/{epochs}], Batch [{i+1}/{len(train_dataloader)}], Loss: {loss.item():.4f}")
 
-        # create a model
-        svm = MultiClassSVM(num_classes=10)
 
-        # fit the model
-        svm.fit(
-            X_train, y_train, C=C_i,
-            learning_rate=learning_rate,
-            num_iters=num_iters,
-        )
-
-        # evaluate the model
-        accuracy = svm.accuracy_score(X_test, y_test)
-        precision = svm.precision_score(X_test, y_test)
-        recall = svm.recall_score(X_test, y_test)
-        f1_score = svm.f1_score(X_test, y_test)
-
-        metrics.append((k, accuracy, precision, recall, f1_score))
-
-        print(f'k={k}, accuracy={accuracy}, precision={precision}, recall={recall}, f1_score={f1_score}')
-
+    def test_model():
+        model.eval() # Set model to evaluation mode
+        num_classes = 10
+        
+        # Initialize tensors to store TP, FP, FN for each class
+        # Shape: (10,), all zeros, on the correct device
+        tp_counts = torch.zeros(num_classes, device=device)
+        fp_counts = torch.zeros(num_classes, device=device)
+        fn_counts = torch.zeros(num_classes, device=device)
+        total_samples = 0
+        
+        with torch.no_grad():
+            for images, labels in test_loader:
+                images = images.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True)
+                
+                outputs = model(images)
+                _, predicted = torch.max(outputs.data, 1) # Get predictions
+                total_samples += labels.size(0)
+                
+                # Loop through each class to calculate TP, FP, FN for this batch
+                for c in range(num_classes):
+                    # True if the prediction is class 'c'
+                    pred_mask = (predicted == c)
+                    # True if the actual label is class 'c'
+                    label_mask = (labels == c)
+                    
+                    # True Positives: Predicted 'c' AND Actual 'c'
+                    tp_counts[c] += (pred_mask & label_mask).sum().float()
+                    
+                    # False Positives: Predicted 'c' BUT Actual is NOT 'c'
+                    fp_counts[c] += (pred_mask & ~label_mask).sum().float()
+                    
+                    # False Negatives: Actual is 'c' BUT Predicted is NOT 'c'
+                    fn_counts[c] += (~pred_mask & label_mask).sum().float()
+                    
+        # -----------------------------
+        # Calculate Final Metrics
+        # -----------------------------
+        epsilon = 1e-15 # Prevent division by zero
+        
+        # Calculate metrics for each class [web:90, web:97]
+        precision_per_class = tp_counts / (tp_counts + fp_counts + epsilon)
+        recall_per_class = tp_counts / (tp_counts + fn_counts + epsilon)
+        f1_per_class = 2 * (precision_per_class * recall_per_class) / (precision_per_class + recall_per_class + epsilon)
+        
+        # Macro averages (mean across all classes)
+        macro_precision = precision_per_class.mean().item()
+        macro_recall = recall_per_class.mean().item()
+        macro_f1 = f1_per_class.mean().item()
+        
+        # Global Accuracy
+        global_accuracy = (tp_counts.sum() / total_samples).item() * 100
+        
+        print("\n--- Test Set Results (Boolean Method) ---")
+        print(f"Accuracy:  {global_accuracy:.2f}%")
+        print(f"Macro Precision: {macro_precision:.4f}")
+        print(f"Macro Recall:    {macro_recall:.4f}")
+        print(f"Macro F1 Score:  {macro_f1:.4f}")
     # plot and save the results
-    plot_metrics(metrics)
+    # plot_metrics(metrics)
 
 
 if __name__ == '__main__':
